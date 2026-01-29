@@ -796,6 +796,37 @@ def fsdp2_switch_optimizer_parameters(optimizer: torch.optim.Optimizer, mapping:
             indicates a bug. If we kept the original params instead of raising, the training wouldn't be numerically
             correct and weights wouldn't get updated.
     """
+    from torch.distributed.tensor import DTensor
+
+    accessor_mapping = {}
+
+    accessor_mapping[DTensor] = "_local_tensor"
+    try:
+        for param_group in optimizer.param_groups:
+            param_group["params"] = [mapping[p.data_ptr] for p in param_group["params"]]
+    except KeyError:
+        # This shouldn't ever happen, but we want to fail here else training wouldn't be numerically correct
+        # This basically means that we're missing a mapping from the original parameter to the sharded parameter
+        raise KeyError(
+            "A parameter in the optimizer couldn't be switched to its sharded version. This breaks the training. Please raise an issue on GitHub."
+        )
+
+
+def hsdp2_switch_optimizer_parameters(optimizer: torch.optim.Optimizer, mapping: dict):
+    """
+    Switches the parameters of the optimizer to new ones (sharded parameters in usual case). This function modifies the
+    optimizer in-place.
+
+    Args:
+        optimizer (`torch.optim.Optimizer`): Optimizer instance which contains the original model parameters
+        mapping (`dict`): Mapping from the original parameter (specified by `data_ptr`) to the sharded parameter
+
+    Raises:
+        KeyError:
+            If a parameter in the optimizer couldn't be switched to its sharded version. This should never happen and
+            indicates a bug. If we kept the original params instead of raising, the training wouldn't be numerically
+            correct and weights wouldn't get updated.
+    """
     from hyper_parallel import DTensor
 
     accessor_mapping = {}
@@ -956,7 +987,8 @@ def fsdp2_prepare_model(accelerator, model: torch.nn.Module) -> torch.nn.Module:
         # Other ranks have an empty model on `meta` device, so we need to distribute the weights properly
         fsdp2_load_full_state_dict(accelerator, model, original_sd)
 
-    if hsdp_plugin.cpu_ram_efficient_loading and not model_has_params4bit:
+
+    if fsdp2_plugin.cpu_ram_efficient_loading and not model_has_params4bit:
         # We re-register the buffers, as they may not be in the state_dict
         for fqn, buffer_tensor in original_non_persistent_buffers.items():
             buffer_tensor = buffer_tensor.to(accelerator.device)

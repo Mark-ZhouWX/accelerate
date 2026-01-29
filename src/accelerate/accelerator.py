@@ -90,6 +90,7 @@ from .utils import (
     fsdp2_prepare_model,
     hsdp_prepare_model,
     fsdp2_switch_optimizer_parameters,
+    hsdp2_switch_optimizer_parameters,
     gather,
     gather_object,
     get_fsdp2_grad_scaler,
@@ -1783,7 +1784,7 @@ class Accelerator:
         # Update the optimizer parameters
         for obj in result:
             if isinstance(obj, torch.optim.Optimizer):
-                fsdp2_switch_optimizer_parameters(obj, mapping)
+                hsdp2_switch_optimizer_parameters(obj, mapping)
 
         return result
 

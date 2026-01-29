@@ -263,6 +263,12 @@ def launch_command_parser(subparsers=None):
         help="Whether to use fsdp.",
     )
     paradigm_args.add_argument(
+        "--use_hsdp",
+        default=False,
+        action="store_true",
+        help="Whether to use hsdp.",
+    )
+    paradigm_args.add_argument(
         "--use_parallelism_config",
         default=False,
         action="store_true",
