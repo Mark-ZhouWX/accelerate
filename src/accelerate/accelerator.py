@@ -114,7 +114,9 @@ from .utils import (
     is_transformer_engine_available,
     is_xpu_available,
     load_fsdp_model,
+    load_hsdp_model,
     load_fsdp_optimizer,
+    load_hsdp_optimizer,
     model_has_dtensor,
     pad_across_processes,
     parse_choice_from_env,
@@ -123,7 +125,9 @@ from .utils import (
     release_memory,
     save,
     save_fsdp_model,
+    save_hsdp_model,
     save_fsdp_optimizer,
+    save_hsdp_optimizer,
     wait_for_everyone,
 )
 from .utils.constants import (
@@ -2977,6 +2981,17 @@ class Accelerator:
                         return torch.nn.utils.clip_grad_norm_(
                             parameters, max_norm, norm_type=norm_type
                         )  # viz: https://github.com/pytorch/torchtitan/blob/main/docs/fsdp.md
+        if self.distributed_type == DistributedType.HSDP:
+            self.unscale_gradients()
+            parameters = [p for p in parameters]
+            for model in self._models:
+                if parameters == [p for p in model.parameters()]:
+                    if not self.is_hsdp:
+                        return model.clip_grad_norm_(max_norm, norm_type)
+                    else:
+                        return torch.nn.utils.clip_grad_norm_(
+                            parameters, max_norm, norm_type=norm_type
+                        )  # viz: https://github.com/pytorch/torchtitan/blob/main/docs/fsdp.md
         elif self.distributed_type == DistributedType.DEEPSPEED:
             # DeepSpeed handles gradient clipping internally, but we can retrieve the gradient norm
             if self.deepspeed_engine_wrapped is not None:
@@ -3026,8 +3041,8 @@ class Accelerator:
         ...     optimizer.step()
         ```
         """
-        if self.distributed_type in [DistributedType.DEEPSPEED, DistributedType.FSDP]:
-            raise Exception("DeepSpeed and FSDP  do not support `clip_grad_value_`. Use `clip_grad_norm_` instead.")
+        if self.distributed_type in [DistributedType.DEEPSPEED, DistributedType.FSDP, DistributedType.HSDP]:
+            raise Exception("DeepSpeed and FSDP and HSDP do not support `clip_grad_value_`. Use `clip_grad_norm_` instead.")
         self.unscale_gradients()
         torch.nn.utils.clip_grad_value_(parameters, clip_value)
 
@@ -3650,6 +3665,10 @@ class Accelerator:
                 logger.info("Saving FSDP model")
                 save_fsdp_model(self.state.fsdp_plugin, self, model, output_dir, i)
                 logger.info(f"FSDP Model saved to output dir {output_dir}")
+            if self.distributed_type == DistributedType.HSDP:
+                logger.info("Saving HSDP model")
+                save_hsdp_model(self.state.hsdp_plugin, self, model, output_dir, i)
+                logger.info(f"HSDP Model saved to output dir {output_dir}")
             elif self.distributed_type == DistributedType.DEEPSPEED:
                 logger.info("Saving DeepSpeed Model and Optimizer")
                 ckpt_id = f"{MODEL_NAME}" if i == 0 else f"{MODEL_NAME}_{i}"
@@ -3669,6 +3688,11 @@ class Accelerator:
                 logger.info("Saving FSDP Optimizer")
                 save_fsdp_optimizer(self.state.fsdp_plugin, self, opt, self._models[i], output_dir, i)
                 logger.info(f"FSDP Optimizer saved to output dir {output_dir}")
+        elif self.distributed_type == DistributedType.HSDP:
+            for i, opt in enumerate(self._optimizers):
+                logger.info("Saving HSDP Optimizer")
+                save_hsdp_optimizer(self.state.hsdp_plugin, self, opt, self._models[i], output_dir, i)
+                logger.info(f"HSDP Optimizer saved to output dir {output_dir}")
         elif self.distributed_type not in [DistributedType.DEEPSPEED, DistributedType.MEGATRON_LM]:
             optimizers = self._optimizers
 
@@ -3798,6 +3822,10 @@ class Accelerator:
                 logger.info("Loading FSDP model")
                 load_fsdp_model(self.state.fsdp_plugin, self, model, input_dir, i)
                 logger.info(f"FSDP Model loaded from input dir {input_dir}")
+            elif self.distributed_type == DistributedType.HSDP:
+                logger.info("Loading HSDP model")
+                load_hsdp_model(self.state.hsdp_plugin, self, model, input_dir, i)
+                logger.info(f"HSDP Model loaded from input dir {input_dir}")
             elif self.distributed_type == DistributedType.DEEPSPEED:
                 logger.info("Loading DeepSpeed Model and Optimizer")
                 ckpt_id = f"{MODEL_NAME}" if i == 0 else f"{MODEL_NAME}_{i}"
@@ -3832,6 +3860,11 @@ class Accelerator:
                 logger.info("Loading FSDP Optimizer")
                 load_fsdp_optimizer(self.state.fsdp_plugin, self, opt, self._models[i], input_dir, i)
                 logger.info(f"FSDP Optimizer loaded from input dir {input_dir}")
+        elif self.distributed_type == DistributedType.HSDP:
+            for i, opt in enumerate(self._optimizers):
+                logger.info("Loading HSDP Optimizer")
+                load_hsdp_optimizer(self.state.hsdp_plugin, self, opt, self._models[i], input_dir, i)
+                logger.info(f"HSDP Optimizer loaded from input dir {input_dir}")
         elif self.distributed_type not in [DistributedType.DEEPSPEED, DistributedType.MEGATRON_LM]:
             optimizers = self._optimizers
 
@@ -4039,6 +4072,11 @@ class Accelerator:
 
                 state_dict = clone_tensors_for_torch_save(self.unwrap_model(model).state_dict())
         elif self.is_fsdp2:
+            from torch.distributed.checkpoint.state_dict import StateDictOptions, get_model_state_dict
+
+            options = StateDictOptions(full_state_dict=True, broadcast_from_rank0=True, cpu_offload=True)
+            state_dict = get_model_state_dict(model, options=options)
+        elif self.is_hsdp:
             from torch.distributed.checkpoint.state_dict import StateDictOptions, get_model_state_dict
 
             options = StateDictOptions(full_state_dict=True, broadcast_from_rank0=True, cpu_offload=True)
