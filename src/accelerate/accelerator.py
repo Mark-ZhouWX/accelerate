@@ -289,6 +289,7 @@ class Accelerator:
         dataloader_config: DataLoaderConfiguration | None = None,
         deepspeed_plugin: DeepSpeedPlugin | dict[str, DeepSpeedPlugin] | None = None,
         fsdp_plugin: FullyShardedDataParallelPlugin | None = None,
+        hsdp_plugin: HyperShardedDataParallelPlugin | None = None,
         torch_tp_plugin: TorchTensorParallelPlugin | None = None,  # Deprecate later, warning in `post_init`
         megatron_lm_plugin: MegatronLMPlugin | None = None,
         rng_types: list[str | RNGType] | None = None,
@@ -402,6 +403,28 @@ class Accelerator:
             if not is_torch_version(">=", FSDP2_PYTORCH_VERSION):
                 raise ImportError(f"FSDP2 requires PyTorch >= {FSDP2_PYTORCH_VERSION}")
 
+        # hsdp
+        # if os.environ.get("ACCELERATE_USE_FSDP", "false").lower() == "true" or isinstance(
+        #     hsdp_plugin, FullyShardedDataParallelPlugin
+        # ):
+        #     if not is_torch_version(">=", FSDP_PYTORCH_VERSION):
+        #         raise ValueError(f"FSDP requires PyTorch >= {FSDP_PYTORCH_VERSION}")
+
+        if hsdp_plugin is None:  # init from env variables
+            hsdp_plugin = (
+                HyperShardedDataParallelPlugin()
+                if os.environ.get("ACCELERATE_USE_HSDP", "false").lower() == "true"
+                else None
+            )
+        else:
+            if not isinstance(hsdp_plugin, HyperShardedDataParallelPlugin):
+                raise TypeError("`hsdp_plugin` must be a HyperShardedDataParallelPlugin object.")
+            os.environ["ACCELERATE_USE_HSDP"] = "true"  # use HSDP if plugin is provided
+
+        # if hsdp_plugin is not None and hsdp_plugin.hsdp_version == 2:
+        #     if not is_torch_version(">=", HSDP2_PYTORCH_VERSION):
+        #         raise ImportError(f"FSDP2 requires PyTorch >= {FSDP2_PYTORCH_VERSION}")
+
         if megatron_lm_plugin is None:  # init from env variables
             megatron_lm_plugin = (
                 MegatronLMPlugin() if os.environ.get("ACCELERATE_USE_MEGATRON_LM", "false").lower() == "true" else None
@@ -468,6 +491,7 @@ class Accelerator:
             dynamo_plugin=dynamo_plugin,
             deepspeed_plugin=deepspeed_plugins,
             fsdp_plugin=fsdp_plugin,
+            hsdp_plugin=hsdp_plugin,
             megatron_lm_plugin=megatron_lm_plugin,
             parallelism_config=parallelism_config,
             _from_accelerator=True,
