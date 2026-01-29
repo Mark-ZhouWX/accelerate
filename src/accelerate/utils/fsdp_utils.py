@@ -26,7 +26,7 @@ from typing import Callable, Union
 import torch
 
 from ..logging import get_logger
-from .constants import FSDP_MODEL_NAME, OPTIMIZER_NAME, SAFE_WEIGHTS_NAME, WEIGHTS_NAME
+from .constants import FSDP_MODEL_NAME, HSDP_MODEL_NAME, OPTIMIZER_NAME, SAFE_WEIGHTS_NAME, WEIGHTS_NAME
 from .dataclasses import get_module_class_from_name
 from .modeling import get_non_persistent_buffers, is_peft_model
 from .other import get_module_children_bottom_up, is_compiled_module, save
@@ -373,7 +373,7 @@ def save_hsdp_model(hsdp_plugin, accelerator, model, output_dir, model_index=0, 
     with ctx:
         state_dict = _get_model_state_dict(model, adapter_only=adapter_only, sd_options=sd_options)
         if hsdp_plugin.state_dict_type == StateDictType.FULL_STATE_DICT:
-            weights_name = f"{FSDP_MODEL_NAME}.bin" if model_index == 0 else f"{FSDP_MODEL_NAME}_{model_index}.bin"
+            weights_name = f"{HSDP_MODEL_NAME}.bin" if model_index == 0 else f"{HSDP_MODEL_NAME}_{model_index}.bin"
             output_model_file = os.path.join(output_dir, weights_name)
             if accelerator.process_index == 0:
                 logger.info(f"Saving model to {output_model_file}")
@@ -382,16 +382,16 @@ def save_hsdp_model(hsdp_plugin, accelerator, model, output_dir, model_index=0, 
         # Invariant: `LOCAL_STATE_DICT` is never possible with `FSDP2`
         elif hsdp_plugin.state_dict_type == StateDictType.LOCAL_STATE_DICT:
             weights_name = (
-                f"{FSDP_MODEL_NAME}_rank{accelerator.process_index}.bin"
+                f"{HSDP_MODEL_NAME}_rank{accelerator.process_index}.bin"
                 if model_index == 0
-                else f"{FSDP_MODEL_NAME}_{model_index}_rank{accelerator.process_index}.bin"
+                else f"{HSDP_MODEL_NAME}_{model_index}_rank{accelerator.process_index}.bin"
             )
             output_model_file = os.path.join(output_dir, weights_name)
             logger.info(f"Saving model to {output_model_file}")
             torch.save(state_dict, output_model_file)
             logger.info(f"Model saved to {output_model_file}")
         elif hsdp_plugin.state_dict_type == StateDictType.SHARDED_STATE_DICT:
-            ckpt_dir = os.path.join(output_dir, f"{FSDP_MODEL_NAME}_{model_index}")
+            ckpt_dir = os.path.join(output_dir, f"{HSDP_MODEL_NAME}_{model_index}")
             os.makedirs(ckpt_dir, exist_ok=True)
             logger.info(f"Saving model to {ckpt_dir}")
             state_dict = {"model": state_dict}
@@ -436,7 +436,7 @@ def load_hsdp_model(hsdp_plugin, accelerator, model, input_dir, model_index=0, a
                         "initializing FSDP object"
                     )
                 return
-            weights_name = f"{FSDP_MODEL_NAME}.bin" if model_index == 0 else f"{FSDP_MODEL_NAME}_{model_index}.bin"
+            weights_name = f"{HSDP_MODEL_NAME}.bin" if model_index == 0 else f"{HSDP_MODEL_NAME}_{model_index}.bin"
             input_model_file = os.path.join(input_dir, weights_name)
             logger.info(f"Loading model from {input_model_file}")
             # we want an empty state dict for FSDP2 as we use `broadcast_from_rank0`
@@ -448,9 +448,9 @@ def load_hsdp_model(hsdp_plugin, accelerator, model, input_dir, model_index=0, a
             logger.info(f"Model loaded from {input_model_file}")
         elif hsdp_plugin.state_dict_type == StateDictType.LOCAL_STATE_DICT:
             weights_name = (
-                f"{FSDP_MODEL_NAME}_rank{accelerator.process_index}.bin"
+                f"{HSDP_MODEL_NAME}_rank{accelerator.process_index}.bin"
                 if model_index == 0
-                else f"{FSDP_MODEL_NAME}_{model_index}_rank{accelerator.process_index}.bin"
+                else f"{HSDP_MODEL_NAME}_{model_index}_rank{accelerator.process_index}.bin"
             )
             input_model_file = os.path.join(input_dir, weights_name)
             logger.info(f"Loading model from {input_model_file}")
@@ -458,8 +458,8 @@ def load_hsdp_model(hsdp_plugin, accelerator, model, input_dir, model_index=0, a
             logger.info(f"Model loaded from {input_model_file}")
         elif hsdp_plugin.state_dict_type == StateDictType.SHARDED_STATE_DICT:
             ckpt_dir = (
-                os.path.join(input_dir, f"{FSDP_MODEL_NAME}_{model_index}")
-                if f"{FSDP_MODEL_NAME}" not in input_dir
+                os.path.join(input_dir, f"{HSDP_MODEL_NAME}_{model_index}")
+                if f"{HSDP_MODEL_NAME}" not in input_dir
                 else input_dir
             )
             logger.info(f"Loading model from {ckpt_dir}")
