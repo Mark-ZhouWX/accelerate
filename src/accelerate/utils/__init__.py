@@ -234,7 +234,7 @@ from .fsdp_utils import (
     fsdp2_prepare_model,
     hsdp_prepare_model,
     fsdp2_switch_optimizer_parameters,
-    hsdp2_switch_optimizer_parameters,
+    hsdp_switch_optimizer_parameters,
     get_fsdp2_grad_scaler,
     load_fsdp_model,
     load_fsdp_optimizer,
