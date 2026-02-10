@@ -572,8 +572,8 @@ def get_cluster_input():
             hsdp_state_dict_type_query = "What should be your HSDP's state dict type?"
             hsdp_config["hsdp_state_dict_type"] = _ask_options(
                 hsdp_state_dict_type_query,
-                FSDP_STATE_DICT_TYPE if hsdp_version == 1 else FSDP2_STATE_DICT_TYPE,
-                lambda x: FSDP_STATE_DICT_TYPE[int(x)] if hsdp_version == 1 else FSDP2_STATE_DICT_TYPE[int(x)],
+                FSDP2_STATE_DICT_TYPE,
+                lambda x: FSDP2_STATE_DICT_TYPE[int(x)],
                 default=0,
             )
             # Not implemented in FSDP2, ask for user input for FSDP1

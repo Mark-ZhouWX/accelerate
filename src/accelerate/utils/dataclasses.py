@@ -2388,10 +2388,6 @@ class HyperShardedDataParallelPlugin:
         if self.hsdp_version is None:
             self.hsdp_version = int(os.environ.get(env_prefix + "VERSION", "2"))
 
-        # if self.hsdp_version == 2:
-        #     if not is_torch_version(">=", FSDP2_PYTORCH_VERSION):
-        #         raise ImportError(f"FSDP2 requires PyTorch >= {FSDP2_PYTORCH_VERSION}")
-
         if self.sharding_strategy is not None:
             # We cannot properly detect all of the cases, as by default `args.hsdp_sharding_strategy` is set to `fully_shard`
             # Therefore we issue a warning only if the user has explicitly set it inside their plugin
@@ -2414,14 +2410,14 @@ class HyperShardedDataParallelPlugin:
         if self.reshard_after_forward is None and self.sharding_strategy is None:
             reshard_after_forward = os.environ.get(
                 env_prefix + "RESHARD_AFTER_FORWARD",
-                "true" if self.hsdp_version == 2 else "FULL_SHARD",
+                "true",
             )
-            if self.hsdp_version == 2:
+            if self.hsdp_version == 1:
                 self.reshard_after_forward = str_to_bool(reshard_after_forward.lower(), to_bool=True)
             else:
                 self.reshard_after_forward = reshard_after_forward
         if isinstance(self.reshard_after_forward, str):
-            if self.hsdp_version == 2:
+            if self.hsdp_version == 1:
                 self.reshard_after_forward = str_to_bool(self.reshard_after_forward.lower(), to_bool=True)
             else:
                 pass
@@ -2433,7 +2429,7 @@ class HyperShardedDataParallelPlugin:
                 # else:
                 #     self.reshard_after_forward = ShardingStrategy[self.reshard_after_forward.upper()]
 
-        if self.hsdp_version == 2 and not isinstance(self.reshard_after_forward, bool):
+        if self.hsdp_version == 1 and not isinstance(self.reshard_after_forward, bool):
             raise ValueError(
                 f"reshard_after_forward set to {self.reshard_after_forward}. This is not supported with HSDP, please set to a `bool`"
             )
@@ -2459,7 +2455,7 @@ class HyperShardedDataParallelPlugin:
         #         self.backward_prefetch = BackwardPrefetch(int(self.backward_prefetch))
         #     else:
         #         self.backward_prefetch = BackwardPrefetch[self.backward_prefetch.upper()]
-        if self.hsdp_version == 2 and self.backward_prefetch is not None:
+        if self.hsdp_version == 1 and self.backward_prefetch is not None:
             _hsdp_warnings.add("backward_prefetch is not supported in HSDP2. Setting backward prefetch to None.")
             self.backward_prefetch = None
 
@@ -2494,25 +2490,25 @@ class HyperShardedDataParallelPlugin:
             elif self.auto_wrap_policy.upper() == "NO_WRAP":
                 self.auto_wrap_policy = None
 
-        if self.use_orig_params is None and self.hsdp_version == 1:
-            self.use_orig_params = str_to_bool(os.environ.get(env_prefix + "USE_ORIG_PARAMS", "False")) == 1
-        if self.hsdp_version == 2 and self.use_orig_params is not None:
+        # if self.use_orig_params is None and self.hsdp_version == 1:
+        #     self.use_orig_params = str_to_bool(os.environ.get(env_prefix + "USE_ORIG_PARAMS", "False")) == 1
+        if self.hsdp_version == 1 and self.use_orig_params is not None:
             _hsdp_warnings.add("use_orig_params is obsolete in HSDP2, as HSDP2 always uses the original parameters.")
             self.use_orig_params = None
 
         if self.sync_module_states is None and self.hsdp_version == 1:
             self.sync_module_states = str_to_bool(os.environ.get(env_prefix + "SYNC_MODULE_STATES", "False")) == 1
-        if self.hsdp_version == 2 and self.sync_module_states is not None:
+        if self.hsdp_version == 1 and self.sync_module_states is not None:
             _hsdp_warnings.add(
                 "sync_module_states is obsolete in HSDP2, as it is not needed anymore."
                 "Setting sync_module_states to None."
             )
             self.sync_module_states = None
 
-        if self.forward_prefetch is None and self.hsdp_version == 1:
-            self.forward_prefetch = str_to_bool(os.environ.get(env_prefix + "FORWARD_PREFETCH", "False")) == 1
-        if self.hsdp_version == 2 and self.forward_prefetch is not None:
-            raise ValueError("forward_prefetch is not yet implemented in HSDP, set to None or use `hsdp_version=1`")
+        # if self.forward_prefetch is None and self.hsdp_version == 1:
+        #     self.forward_prefetch = str_to_bool(os.environ.get(env_prefix + "FORWARD_PREFETCH", "False")) == 1
+        if self.hsdp_version == 1 and self.forward_prefetch is not None:
+            raise ValueError("forward_prefetch is not yet implemented in HSDP, set to None or use `FSDP`")
 
         if self.activation_checkpointing is None:
             self.activation_checkpointing = (
@@ -2526,13 +2522,13 @@ class HyperShardedDataParallelPlugin:
             self.cpu_ram_efficient_loading = (
                 str_to_bool(os.environ.get(env_prefix + "CPU_RAM_EFFICIENT_LOADING", "False")) == 1
             )
-        # There's no need to specify sync_module_states in HSDP2
-        if self.hsdp_version == 1 and self.cpu_ram_efficient_loading and not self.sync_module_states:
-            warnings.warn(
-                "sync_module_states cannot be False since efficient cpu ram loading enabled. "
-                "Setting sync_module_states to True."
-            )
-            self.sync_module_states = True
+        # # There's no need to specify sync_module_states in HSDP2
+        # if self.hsdp_version == 1 and self.cpu_ram_efficient_loading and not self.sync_module_states:
+        #     warnings.warn(
+        #         "sync_module_states cannot be False since efficient cpu ram loading enabled. "
+        #         "Setting sync_module_states to True."
+        #     )
+        #     self.sync_module_states = True
 
         if self.cpu_ram_efficient_loading != bool(
             str_to_bool(os.environ.get(env_prefix + "CPU_RAM_EFFICIENT_LOADING", "False"))
@@ -2573,7 +2569,7 @@ class HyperShardedDataParallelPlugin:
             # Create a function that will be used to initialize the parameters of the model
             # when using `sync_module_states`
             self.param_init_fn = lambda x: x.to_empty(device=device, recurse=False)
-        if is_torch_version("<", "2.7.0") and self.hsdp_version == 2 and self.ignored_modules is not None:
+        if is_torch_version("<", "2.7.0") and self.hsdp_version == 1 and self.ignored_modules is not None:
             _hsdp_warnings.add(
                 "HSDP2 ignored_params/ignored_modules is not available for torch version < 2.7.0"
                 "Setting ignored_modules to None."
@@ -2603,7 +2599,7 @@ class HyperShardedDataParallelPlugin:
         if self.state_dict_type is None:
             self.state_dict_type = os.environ.get(
                 "HSDP_STATE_DICT_TYPE",
-                "FULL_STATE_DICT" if self.hsdp_version == 1 else "SHARDED_STATE_DICT",
+                "SHARDED_STATE_DICT",
             )
         if isinstance(self.state_dict_type, str):
             if self.state_dict_type.isdigit():
@@ -2622,7 +2618,7 @@ class HyperShardedDataParallelPlugin:
             if self.optim_state_dict_config is None:
                 self.optim_state_dict_config = ShardedOptimStateDictConfig(offload_to_cpu=True)
 
-        if self.hsdp_version == 2 and self.state_dict_type == StateDictType.LOCAL_STATE_DICT:
+        if self.hsdp_version == 1 and self.state_dict_type == StateDictType.LOCAL_STATE_DICT:
             raise ValueError(
                 "HSDP2 does not support LOCAL_STATE_DICT. "
                 "Please set `hsdp_state_dict_type` to `SHARDED_STATE_DICT` or `FULL_STATE_DICT`."
@@ -2684,24 +2680,17 @@ class HyperShardedDataParallelPlugin:
 
         buffer_type = torch.float32 if buffer_autocast else dtype
 
-        if self.hsdp_version == 1:
-            from torch.distributed.fsdp import MixedPrecision
-        elif self.hsdp_version == 2:
-            from torch.distributed.fsdp import MixedPrecisionPolicy as MixedPrecision
+        # HSDP only support `torch.distributed.fsdp.MixedPrecisionPolicy`
+        from torch.distributed.fsdp import MixedPrecisionPolicy as MixedPrecision
 
         if override or self.mixed_precision_policy is None:
             dtype_args = {"param_dtype": dtype, "reduce_dtype": dtype}
-            if self.hsdp_version == 1:
-                dtype_args["buffer_dtype"] = buffer_type
-            else:
-                dtype_args["output_dtype"] = dtype
+            dtype_args["output_dtype"] = dtype
             # TODO(s1ro1): `cast_forward_inputs` for HSDP2?
             self.mixed_precision_policy = MixedPrecision(**dtype_args)
         elif isinstance(self.mixed_precision_policy, dict):
             # Check for incompatible types
-            valid_keys = ["param_dtype", "reduce_dtype"] + (
-                ["buffer_dtype"] if self.hsdp_version == 1 else ["output_dtype"]
-            )
+            valid_keys = ["param_dtype", "reduce_dtype", "output_dtype"]
             missing_keys = [k for k in valid_keys if k not in self.mixed_precision_policy]
             invalid_values = [
                 k for k, v in self.mixed_precision_policy.items() if v not in mixed_precision_mapping.values()
@@ -2718,7 +2707,7 @@ class HyperShardedDataParallelPlugin:
         """
         Validates the mixed precision policy, abstracted away to not bring in the imports if not needed.
         """
-        if self.hsdp_version == 2:
+        if self.hsdp_version == 1:
             from torch.distributed.fsdp import MixedPrecisionPolicy as MixedPrecision
         else:
             from torch.distributed.fsdp import MixedPrecision
@@ -2726,19 +2715,19 @@ class HyperShardedDataParallelPlugin:
         if not isinstance(self.mixed_precision_policy, MixedPrecision):
             required_type = (
                 "`torch.distributed.hsdp.MixedPrecisionPolicy`"
-                if self.hsdp_version == 2
+                if self.hsdp_version == 1
                 else "`torch.distributed.fsdp.MixedPrecision`"
             )
             raise ValueError(f"mixed_precision_policy must be an instance of {required_type}.")
 
     def set_cpu_offload(self):
-        if self.hsdp_version == 2:
+        if self.hsdp_version == 1:
             from torch.distributed.fsdp import CPUOffloadPolicy, OffloadPolicy
         else:
             from torch.distributed.fsdp import CPUOffload
 
         if isinstance(self.cpu_offload, bool):
-            if self.hsdp_version == 2:
+            if self.hsdp_version == 1:
                 if not self.cpu_offload:
                     self.cpu_offload = OffloadPolicy()
                 else:
@@ -2747,18 +2736,14 @@ class HyperShardedDataParallelPlugin:
                 self.cpu_offload = CPUOffload(offload_params=self.cpu_offload)
 
     def validate_cpu_offload(self):
-        if self.hsdp_version == 2:
+        if self.hsdp_version == 1:
             from torch.distributed.fsdp import OffloadPolicy
         else:
             from torch.distributed.fsdp import CPUOffload
 
-        if self.hsdp_version == 2 and not isinstance(self.cpu_offload, OffloadPolicy):
+        if self.hsdp_version == 1 and not isinstance(self.cpu_offload, OffloadPolicy):
             raise ValueError(
                 f"`cpu_offload` must be an instance of `torch.distributed.fsdp.OffloadPolicy` in HSDP2, got {self.cpu_offload}"
-            )
-        if self.hsdp_version == 1 and not isinstance(self.cpu_offload, CPUOffload):
-            raise ValueError(
-                f"`cpu_offload` must be an instance of `torch.distributed.fsdp.CPUOffload` in HSDP1, got {self.cpu_offload}"
             )
 
 

@@ -333,7 +333,7 @@ def _prepare_sd_hsdp_options(hsdp_plugin):
     sd_options = None
 
     # we use this only for HSDP2, as it requires torch >= 2.6.0 and this api requires torch >= 2.2.0
-    if hsdp_plugin.hsdp_version == 2:
+    if hsdp_plugin.hsdp_version == 1:
         from torch.distributed.checkpoint.state_dict import StateDictOptions
         from torch.distributed.fsdp.fully_sharded_data_parallel import StateDictType
 
@@ -361,13 +361,7 @@ def save_hsdp_model(hsdp_plugin, accelerator, model, output_dir, model_index=0, 
         hsdp_plugin.state_dict_config.offload_to_cpu = is_multi_process
         hsdp_plugin.state_dict_config.rank0_only = is_multi_process
 
-    ctx = (
-        FSDP.state_dict_type(
-            model, hsdp_plugin.state_dict_type, hsdp_plugin.state_dict_config, hsdp_plugin.optim_state_dict_config
-        )
-        if hsdp_plugin.hsdp_version == 1
-        else nullcontext()
-    )
+    ctx = nullcontext()
     sd_options = _prepare_sd_hsdp_options(hsdp_plugin)
 
     with ctx:
@@ -419,22 +413,11 @@ def load_hsdp_model(hsdp_plugin, accelerator, model, input_dir, model_index=0, a
         hsdp_plugin.state_dict_config.offload_to_cpu = is_multi_process
         hsdp_plugin.state_dict_config.rank0_only = is_multi_process
 
-    ctx = (
-        FSDP.state_dict_type(
-            model, hsdp_plugin.state_dict_type, hsdp_plugin.state_dict_config, hsdp_plugin.optim_state_dict_config
-        )
-        if hsdp_plugin.hsdp_version == 1
-        else nullcontext()
-    )
+    ctx = nullcontext()
     sd_options = _prepare_sd_hsdp_options(hsdp_plugin)
     with ctx:
         if hsdp_plugin.state_dict_type == StateDictType.FULL_STATE_DICT:
             if type(model) is not FSDP and accelerator.process_index != 0 and not accelerator.is_hsdp:
-                if not hsdp_plugin.sync_module_states and hsdp_plugin.hsdp_version == 1:
-                    raise ValueError(
-                        "Set the `sync_module_states` flag to `True` so that model states are synced across processes when "
-                        "initializing FSDP object"
-                    )
                 return
             weights_name = f"{HSDP_MODEL_NAME}.bin" if model_index == 0 else f"{HSDP_MODEL_NAME}_{model_index}.bin"
             input_model_file = os.path.join(input_dir, weights_name)
@@ -485,13 +468,7 @@ def save_hsdp_optimizer(hsdp_plugin, accelerator, optimizer, model, output_dir, 
 
     os.makedirs(output_dir, exist_ok=True)
 
-    ctx = (
-        FSDP.state_dict_type(
-            model, hsdp_plugin.state_dict_type, hsdp_plugin.state_dict_config, hsdp_plugin.optim_state_dict_config
-        )
-        if hsdp_plugin.hsdp_version == 1
-        else nullcontext()
-    )
+    ctx = nullcontext()
 
     sd_options = _prepare_sd_hsdp_options(hsdp_plugin)
 
@@ -531,13 +508,7 @@ def load_hsdp_optimizer(hsdp_plugin, accelerator, optimizer, model, input_dir, o
     from torch.distributed.fsdp.fully_sharded_data_parallel import StateDictType
 
     accelerator.wait_for_everyone()
-    ctx = (
-        FSDP.state_dict_type(
-            model, hsdp_plugin.state_dict_type, hsdp_plugin.state_dict_config, hsdp_plugin.optim_state_dict_config
-        )
-        if hsdp_plugin.hsdp_version == 1
-        else nullcontext()
-    )
+    ctx = nullcontext()
     sd_options = _prepare_sd_hsdp_options(hsdp_plugin)
     with ctx:
         if hsdp_plugin.state_dict_type == StateDictType.FULL_STATE_DICT:
@@ -566,13 +537,10 @@ def load_hsdp_optimizer(hsdp_plugin, accelerator, optimizer, model, input_dir, o
             optim_state = optim_state["optimizer"]
             logger.info(f"Optimizer loaded from {ckpt_dir}")
 
-        if hsdp_plugin.hsdp_version == 1:
-            flattened_osd = FSDP.optim_state_dict_to_load(model=model, optim=optimizer, optim_state_dict=optim_state)
-            optimizer.load_state_dict(flattened_osd)
-        else:
-            from torch.distributed.checkpoint.state_dict import set_optimizer_state_dict
 
-            set_optimizer_state_dict(model, optimizer, optim_state, options=sd_options)
+        from torch.distributed.checkpoint.state_dict import set_optimizer_state_dict
+
+        set_optimizer_state_dict(model, optimizer, optim_state, options=sd_options)
 
 
 def _distributed_checkpoint_to_merged_weights(checkpoint_dir: str, save_path: str, safe_serialization: bool = True):
