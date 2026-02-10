@@ -1112,7 +1112,8 @@ def hsdp_prepare_model(accelerator, model: torch.nn.Module) -> torch.nn.Module:
     Returns:
         `torch.nn.Module`: Prepared model
     """
-    from torch.distributed.fsdp import MixedPrecisionPolicy, fully_shard
+    from torch.distributed.fsdp import MixedPrecisionPolicy
+    from hyper_parallel.core.fully_shard.api import fully_shard
     from hyper_parallel.core.hsdp import HSDPCell
 
     is_type_hsdp = isinstance(model, HSDPCell) or (
