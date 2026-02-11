@@ -2386,7 +2386,7 @@ class HyperShardedDataParallelPlugin:
         env_prefix = "HSDP_"
         # Strategy: By default we should always assume that values are passed in, else we check the environment variables
         if self.hsdp_version is None:
-            self.hsdp_version = int(os.environ.get(env_prefix + "VERSION", "2"))
+            self.hsdp_version = int(os.environ.get(env_prefix + "VERSION", "1"))
 
         if self.sharding_strategy is not None:
             # We cannot properly detect all of the cases, as by default `args.hsdp_sharding_strategy` is set to `fully_shard`
