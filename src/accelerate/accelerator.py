@@ -4077,7 +4077,8 @@ class Accelerator:
             options = StateDictOptions(full_state_dict=True, broadcast_from_rank0=True, cpu_offload=True)
             state_dict = get_model_state_dict(model, options=options)
         elif self.is_hsdp:
-            from torch.distributed.checkpoint.state_dict import StateDictOptions, get_model_state_dict
+            from torch.distributed.checkpoint.state_dict import StateDictOptions
+            from hyper_parallel.core.fully_shard.api import get_model_state_dict
 
             options = StateDictOptions(full_state_dict=True, broadcast_from_rank0=True, cpu_offload=True)
             state_dict = get_model_state_dict(model, options=options)
