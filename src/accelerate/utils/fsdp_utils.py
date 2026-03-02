@@ -473,7 +473,7 @@ def save_hsdp_optimizer(hsdp_plugin, accelerator, optimizer, model, output_dir, 
     sd_options = _prepare_sd_hsdp_options(hsdp_plugin)
 
     with ctx:
-        if hsdp_plugin.hsdp_version == 2:
+        if hsdp_plugin.hsdp_version == 1:
             from torch.distributed.checkpoint.state_dict import get_optimizer_state_dict
 
             optim_state = get_optimizer_state_dict(model, optimizer, options=sd_options)
