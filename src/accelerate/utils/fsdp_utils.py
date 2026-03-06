@@ -1080,7 +1080,7 @@ def hsdp_prepare_model(accelerator, model: torch.nn.Module) -> torch.nn.Module:
     Returns:
         `torch.nn.Module`: Prepared model
     """
-    from torch.distributed.fsdp import MixedPrecisionPolicy
+    from hyper_parallel.platform.torch.fully_shard.utils import MixedPrecisionPolicy
     from hyper_parallel.core.fully_shard.api import fully_shard
     from hyper_parallel.core.hsdp import HSDPCell
 
