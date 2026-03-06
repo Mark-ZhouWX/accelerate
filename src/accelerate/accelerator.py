@@ -2989,7 +2989,8 @@ class Accelerator:
                     if not self.is_hsdp:
                         return model.clip_grad_norm_(max_norm, norm_type)
                     else:
-                        return torch.nn.utils.clip_grad_norm_(
+                        from hyper_parallel.core.utils.clip_grad import clip_grad_norm_
+                        return clip_grad_norm_(
                             parameters, max_norm, norm_type=norm_type
                         )  # viz: https://github.com/pytorch/torchtitan/blob/main/docs/fsdp.md
         elif self.distributed_type == DistributedType.DEEPSPEED:
