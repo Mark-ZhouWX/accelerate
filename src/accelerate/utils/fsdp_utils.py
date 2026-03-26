@@ -1104,6 +1104,8 @@ def hsdp_prepare_model(accelerator, model: torch.nn.Module) -> torch.nn.Module:
         "mp_policy": hsdp_plugin.mixed_precision_policy or MixedPrecisionPolicy(),
         "mesh": mesh[tuple(accelerator.parallelism_config.fsdp_dim_names)] if mesh is not None else None,
         "ignored_params": get_parameters_from_modules(hsdp_plugin.ignored_modules, model, accelerator.device),
+        # enable communication fusion
+        "comm_fusion": True,
     }
 
     model_has_params4bit = False
@@ -1135,15 +1137,35 @@ def hsdp_prepare_model(accelerator, model: torch.nn.Module) -> torch.nn.Module:
         if hasattr(model, "tie_weights"):
             model.tie_weights()
 
+    wrapped_modules_in_order = []
+
     auto_wrap_policy_func = fsdp2_prepare_auto_wrap_policy(hsdp_plugin, model)
     if auto_wrap_policy_func is not None:
         # We skip the model itself, as that one is always wrapped
         for module in get_module_children_bottom_up(model)[:-1]:
             if auto_wrap_policy_func(module) and not isinstance(module, HSDPCell):
                 fully_shard(module, **hsdp_kwargs)
+                wrapped_modules_in_order.append(module)
 
     if not isinstance(model, HSDPCell):
         fully_shard(model, **hsdp_kwargs)
+
+    # forward_prefetch
+    num_to_forward_prefetch = 1
+    for i, layer in enumerate(wrapped_modules_in_order):
+        j_end = min(len(wrapped_modules_in_order), i + 1 + num_to_forward_prefetch)
+        layers_to_prefetch = wrapped_modules_in_order[i + 1: j_end]
+        if layers_to_prefetch:
+            layer.set_modules_to_forward_prefetch(layers_to_prefetch)
+
+    # forward_prefetch
+    num_to_backward_prefetch = 1
+    wrapped_modules_in_order.reverse()
+    for i, layer in enumerate(wrapped_modules_in_order):
+        j_end = min(len(wrapped_modules_in_order), i + 1 + num_to_backward_prefetch)
+        layers_to_prefetch = wrapped_modules_in_order[i + 1: j_end]
+        if layers_to_prefetch:
+            layer.set_modules_to_backward_prefetch(layers_to_prefetch)
 
     if hsdp_plugin.cpu_ram_efficient_loading:
         # If `cpu_ram_efficient_loading` is enabled, only rank 0 loads the weights
