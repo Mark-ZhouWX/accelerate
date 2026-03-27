@@ -761,8 +761,7 @@ def hsdp_load_full_state_dict(accelerator, model: torch.nn.Module, full_sd: dict
         full_sd (`dict`): The full state dict to load, can only be on rank 0
     """
     import torch.distributed as dist
-    from hyper_parallel import DTensor
-    distribute_tensor = DTensor.distribute_tensor
+    from hyper_parallel.core.dtensor.dtensor import distribute_tensor
 
     # Model was previously copied to meta device
     meta_sharded_sd = model.state_dict()
@@ -1080,7 +1079,7 @@ def hsdp_prepare_model(accelerator, model: torch.nn.Module) -> torch.nn.Module:
     Returns:
         `torch.nn.Module`: Prepared model
     """
-    from hyper_parallel.platform.torch.fully_shard.utils import MixedPrecisionPolicy
+    from hyper_parallel.core.fully_shard.utils import MixedPrecisionPolicy
     from hyper_parallel.core.fully_shard.api import fully_shard
     from hyper_parallel.core.hsdp import HSDPCell
 

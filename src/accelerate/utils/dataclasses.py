@@ -2681,7 +2681,7 @@ class HyperShardedDataParallelPlugin:
         buffer_type = torch.float32 if buffer_autocast else dtype
 
         # HSDP only support `torch.distributed.fsdp.MixedPrecisionPolicy`
-        from hyper_parallel.platform.torch.fully_shard.utils import MixedPrecisionPolicy as MixedPrecision
+        from hyper_parallel.core.fully_shard.utils import MixedPrecisionPolicy as MixedPrecision
 
         if override or self.mixed_precision_policy is None:
             dtype_args = {"param_dtype": dtype, "reduce_dtype": dtype}
@@ -2707,7 +2707,7 @@ class HyperShardedDataParallelPlugin:
         """
         Validates the mixed precision policy, abstracted away to not bring in the imports if not needed.
         """
-        from hyper_parallel.platform.torch.fully_shard.utils import MixedPrecisionPolicy as MixedPrecision
+        from hyper_parallel.core.fully_shard.utils import MixedPrecisionPolicy as MixedPrecision
 
         if not isinstance(self.mixed_precision_policy, MixedPrecision):
             required_type = (
